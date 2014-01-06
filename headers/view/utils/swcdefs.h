@@ -16,6 +16,7 @@ typedef std::shared_ptr < class swcText      > spText;
 typedef std::shared_ptr < class swcLabel     > spLabel;
 typedef std::shared_ptr < class swcButton    > spButton;
 typedef std::shared_ptr < class swcTextBox   > spTextBox;
+typedef std::shared_ptr < class swcTextField > spTextField;
 typedef std::shared_ptr < class swcTextView  > spTextView;
 typedef std::shared_ptr < class swcCheckBox  > spCheckBox;
 typedef std::shared_ptr < class swcComboBox  > spComboBox;
