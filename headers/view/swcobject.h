@@ -77,7 +77,6 @@ public:
         trigger_hover = true;
     }
 
-    bool enable;
     bool color_swap;
     bool border_color_swap;
     int drag_axis;
