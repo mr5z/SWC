@@ -1,91 +1,243 @@
-#include <GL/GLEW/glew.h>
+#include <assert.h>
 
-#include "../../../BMfont/BMfont.h"
-#include "../../../BMfont/Text2D.h"
-#include "../../../Aligner/aligner.h"
+#include "XAligner/XAligner.h"
+#include "FTGL/ftgl.h"
 
-#include "../../include/controller/swcwindowhandler.h"
-#include "../../include/view/utils/swchelper.h"
-#include "../../include/view/swcrectangle.h"
-#include "../../include/view/swctext.h"
+#include "swcdefaults.h"
+#include "swcgfx.h"
+#include "swcrectangle.h"
+#include "swctext.h"
 
-namespace swc
+using namespace swc;
+
+swcText::
+    swcText(const std::string &text, swcRectangle *rect) :
+///-----------
+     rect                   (rect)
+    ,font_scale             (1)
+    ,font_face_size         (12)
+    ,font_face_resolution   (100)
+    ,font                   (getDefaultFont("fonts\\AlegreyaSans-Regular.otf",
+                                             font_face_size,
+                                             font_face_resolution))
+    ,text_offset            (new FTPoint())
+    ,text_spacing           (new FTPoint())
+    ,text_align             (ALIGN::MIDDLE_X | ALIGN::MIDDLE_Y)
+    ,text_alpha             (0xff)
+    ,text                   (text)
 {
-
-swcText::swcText():
-     text_align         (ALIGN::MIDDLE_X | ALIGN::MIDDLE_Y)
-    ,text_margin_top    (0)
-    ,text_margin_right  (0)
-    ,text_margin_bottom (0)
-    ,text_margin_left   (0)
-    ,font_scale (1)
-{
-
+    validateTextLayout();
 }
 
-swcText::swcText(const swcText &other) :
-     text_align (other.text_align)
-    ,text       (other.text)
-    ,font       (other.font)
-    ,font_scale (other.font_scale)
-    ,rect       (other.rect)
+swcText::
+    ~swcText()
+///-----------
 {
-
+    //I'm willing to sacrifice the stack allocation
+    //just to not include in the header the FTGL !
+    delete text_offset;
+    delete text_spacing;
 }
 
-void swcText::attachParentRect(swcRectangle *rect) {
-    this->rect = rect;
-}
-
-spFont swcText::getFont() const {
+const pFont
+swcText::
+    getFont() const
+///-----------
+{
     return font;
 }
 
-int swcText::getFontHeight() const {
-    return font->lineHeight * font_scale;
+float
+swcText::
+    getFontScale() const
+///-----------
+{
+    return font_scale;
 }
 
-void swcText::setText(const std::string& text)
+void
+swcText::
+    setText(const std::string& text)
+///-----------
 {
+//    if (this->text == text) return;
+
     this->text = text;
-    computeTextSize();
+
+    validateTextLayout();
 }
 
-void swcText::showText()
+void
+swcText::
+    setTextAlign(int text_align)
+///-----------
 {
-    if (font == nullptr) return;
+    this->text_align = text_align;
 
-    int text_pos_x;
-    int text_pos_y;
-
-    computePosition(text_align,
-                    text_pos_x, text_pos_y,
-                    text_width, text_height,
-                    rect->getX(), rect->getY(),
-                    rect->getWidth(), rect->getHeight());
-
-    glPushMatrix();
-        glTranslatef((text_pos_x + text_margin_left) - text_margin_right,
-                     (text_pos_y + text_margin_top) - text_margin_bottom, 0);
-        glScalef(font_scale, font_scale, font_scale);
-        Text2D::printText(*font, text);
-    glPopMatrix();
+    computeTextAlignment();
 }
 
-uint32_t swcText::getTextWidth() const {
-    return (font == nullptr) ?
-    0 : Text2D::getWidth(*font, text) * font_scale;
-}
-
-uint32_t swcText::getTextHeight() const {
-    return (font == nullptr) ?
-    0 : Text2D::getHeight(*font, text) * font_scale;
-}
-
-void swcText::computeTextSize()
+void
+swcText::
+    setTextColor(const swcRGB text_color)
+///-----------
 {
-    text_width = getTextWidth();
-    text_height = getTextHeight();
+    this->text_color = text_color;
 }
 
+void
+swcText::
+    setFont(const pFont font)
+///-----------
+{
+
+    this->font = font;
+
+    validateTextLayout();
+}
+
+void
+swcText::
+    setFontScale(float font_scale)
+///-----------
+{
+    this->font_scale = font_scale;
+
+    validateTextLayout();
+}
+
+void
+swcText::
+    drawText()
+///-----------
+{
+    assert(font != nullptr);
+
+    if (!isFontInit() || text.empty()) return;
+
+    pushMatrix();
+
+    //apply vertex attributes
+
+    moveTo( text_pos.x ,text_pos.y );
+    glRasterPos2f( text_pos.x , text_pos.y );
+    scaleBy( font_scale, -font_scale );
+    fillColor( text_color, text_alpha );
+
+//    glEnable(GL_MULTISAMPLE);
+
+    font->Render
+    (
+       text.c_str()
+     , text.length()
+     , *text_offset
+     , *text_spacing
+     , FTGL::RenderMode::RENDER_FRONT
+    );
+
+//    glDisable(GL_MULTISAMPLE);
+
+    popMatrix();
+}
+
+float
+swcText::
+    getTextWidth() const
+///-----------
+{
+    if (!isFontInit()) return 0;
+
+    FTBBox box = font->BBox(text.c_str(), text.length(), *text_offset, *text_spacing);
+
+    return (box.Upper().X() - box.Lower().X()) * font_scale;
+}
+
+float
+swcText::
+    getTextHeight() const
+///-----------
+{
+    if (!isFontInit()) return 0;
+
+    FTBBox box = font->BBox(text.c_str());
+
+    return (box.Upper().Y() - box.Lower().Y()) * font_scale;
+}
+
+swcPoint<swcText::Type>
+swcText::
+    getTextPos() const
+///-----------
+{
+    return text_pos;
+}
+
+bool
+swcText::
+    isFontInit() const
+///-----------
+{
+    return font != nullptr;
+}
+
+const std::string&
+swcText::
+    getText() const
+///-----------
+{
+    return text;
+}
+
+void
+swcText::
+    attachToRect(class swcRectangle *rect)
+///-----------
+{
+    this->rect = rect;
+}
+
+void
+swcText::
+    validateTextLayout()
+///-----------
+{
+
+    if (rect == nullptr || text.empty()) return;
+
+    assert(rect != nullptr);
+
+    text_size = { getTextWidth(), getTextHeight() };
+
+    if ( rect->getWidth() < text_size.width )
+        rect->setWidth( text_size.width );
+    if ( rect->getHeight() < text_size.height )
+        rect->setHeight( text_size.height );
+
+    computeTextAlignment();
+
+    dbgPrint("wasted!");
+}
+
+void
+swcText::
+    computeTextAlignment()
+///-----------
+{
+    X::AlignRect
+    (
+    text_align,
+    text_pos.x, text_pos.y,
+    text_size.width, text_size.height,
+#ifdef SWC_SIZE_TYPE_IS_FLOAT
+    rect->getWidth(), rect->getHeight()
+#else
+    static_cast<float>(rect->getWidth()), static_cast<float>(rect->getHeight())
+#endif
+    );
+
+    float x_offset = font->BBox(text.c_str()).Lower().X();
+    float y_offset = font->BBox(text.c_str()).Upper().Y();
+
+    text_pos.x -= x_offset * font_scale;
+    text_pos.y += y_offset * font_scale;
 }
