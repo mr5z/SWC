@@ -1,78 +1,111 @@
 #ifndef SWCTEXT_H
 #define SWCTEXT_H
 
-#include <memory>
 #include <string>
 
-typedef std::shared_ptr< class BMfont> spFont;
+#include "swcpoint.h"
+#include "swcsize.h"
+#include "swcrgb.h"
+
+class FTPoint;
+class FTFont;
 
 namespace swc
 {
 
+class swcRectangle;
+
+using pFont = TPtr<FTFont>;
+
 class swcText
 {
+
+using Type = float;
+
 public:
-    swcText();
-    swcText(const swcText &other);
 
-    virtual void setText(const std::string& text);
+    swcText(const std::string &text, swcRectangle *rect);
 
-    virtual inline void setFont(const spFont &font) {
-        this->font = font;
-        computeTextSize();
-    }
+    virtual ~swcText();
 
-    inline void setFontScale(float font_scale) {
-        this->font_scale = font_scale;
-        computeTextSize();
-    }
+    ///sets text and invalidate
+    ///I made this virtual so I can use it in text field (editable text input)
+    virtual void
+    setText(const std::string &text);
 
-    inline const std::string& getText() {
-        return text;
-    }
+    void ///blah blah blah
+    setTextAlign(int text_align);
 
-    spFont getFont() const;
+    void ///sets the color
+    setTextColor(const swcRGB text_color);
 
-    inline float getFontScale() const {
-        return font_scale;
-    }
+    void ///sets font and invalidate
+    setFont(const pFont font);
 
-    int getFontHeight() const;
+    void ///sets font scale and invalidate
+    setFontScale(Type font_scale);
 
-    uint32_t getTextWidth() const;
-    uint32_t getTextHeight() const;
+    bool ///returns true if sets the font-face size
+    setFontFaceSize(uint32_t face_size, uint32_t face_resolution);
 
-    int text_align;
-    int text_margin_top;
-    int text_margin_right;
-    int text_margin_bottom;
-    int text_margin_left;
+    const pFont ///gets current font
+    getFont() const;
+
+    Type ///gets current font scale
+    getFontScale() const;
+
+    Type ///return largest width in multi-lined
+    getTextWidth() const;
+
+    Type ///gets text height
+    getTextHeight() const;
+
+    swcPoint<Type> ///returns current position
+    getTextPos() const;
+
+    bool ///checks if font is valid
+    isFontInit() const;
+
+    ///returns a constant reference of text
+    const std::string&
+    getText() const;
+
+    void ///attached this text to corresponding rectangle
+    attachToRect(class swcRectangle *rect);
 
 protected:
 
-    void showText();
+    void ///specialized method to draw our text!
+    drawText();
 
-    void attachParentRect(swcRectangle *rect);
+    void ///re-validate
+    validateTextLayout();
 
-    void computeTextSize();
+    void ///re-align!
+    computeTextAlignment();
 
-    std::string text;
+    ///bounding box to be based off
+    ///when aligning
+    TPtr<swcRectangle> rect;
 
-    uint32_t text_width;
-    uint32_t text_height;
+    ///font section
+    Type        font_scale;
+    uint32_t    font_face_size;
+    uint32_t    font_face_resolution;
+    pFont       font;
 
-    spFont font;
+    ///text section
+    swcPoint<Type>  text_pos;
+    swcSize<Type>   text_size;
+    TPtr<FTPoint>   text_offset;
+    TPtr<FTPoint>   text_spacing;
+    int             text_align;
+    swcRGB          text_color;
+    ubyte           text_alpha;
+    std::string     text;
 
-    float font_scale;
-
-    class swcRectangle *rect;
 };
 
 }
-
-//std::string& operator<<(std::string & lhs, const std::string& other) {
-//    return lhs += other;
-//}
-//
 
 #endif // SWCTEXT_H
